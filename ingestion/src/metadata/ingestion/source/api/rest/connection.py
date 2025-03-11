@@ -67,8 +67,9 @@ def test_connection(
 
     def custom_url_exec():
         if (
-            "application/json" in client.headers.get("content-type")
-            and client.status_code == 200
+            #"application/json" in client.headers.get("content-type") and 
+            client.status_code == 200
+            and client.json() is not None
         ):
             return []
         raise SchemaURLError(
