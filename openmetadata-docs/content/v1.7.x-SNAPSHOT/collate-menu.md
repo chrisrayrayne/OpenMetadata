@@ -443,6 +443,10 @@ site_menu:
     url: /connectors/search/elasticsearch
   - category: Connectors / Search / Elasticsearch / Run Externally
     url: /connectors/search/elasticsearch/yaml
+  - category: Connectors / Search / OpenSearch
+    url: /connectors/search/opensearch
+  - category: Connectors / Search / OpenSearch / Run Externally
+    url: /connectors/search/opensearch/yaml
 
   - category: Connectors / Metadata
     url: /connectors/metadata
@@ -848,6 +852,8 @@ site_menu:
     url: /releases/supported
   - category: Releases / All Releases
     url: /releases/all-releases
+  - category: Releases / All Releases / 1.6.5 Release
+    url: /releases/all-releases/#1.6.5-release
   - category: Releases / All Releases / 1.6.4 Release
     url: /releases/all-releases/#1.6.4-release
   - category: Releases / All Releases / 1.6.3 Release

@@ -148,6 +148,7 @@ export const isHTMLString = (content: string) => {
       /^\s*>{1,}\s/, // Blockquotes
       /^---|\*\*\*|___/, // Horizontal rules
       /`{1,3}[^`]+`{1,3}/, // Code blocks
+      /(\*\*)[^*]+(\*\*)|(__)[^_]+(__)/, // Bold/Strong text
     ];
 
     const hasMarkdownSyntax = markdownPatterns.some((pattern) =>
@@ -212,4 +213,17 @@ export const setEditorContent = (editor: Editor, newContent: string) => {
 export const isDescriptionContentEmpty = (content: string) => {
   // Check if the content is empty or has only empty paragraph tags
   return isEmpty(content) || content === '<p></p>';
+};
+
+/**
+ *
+ * @param description HTML string
+ * @returns Text from HTML string
+ */
+export const getTextFromHtmlString = (description?: string): string => {
+  if (!description) {
+    return '';
+  }
+
+  return description.replace(/<[^>]{1,1000}>/g, '').trim();
 };
