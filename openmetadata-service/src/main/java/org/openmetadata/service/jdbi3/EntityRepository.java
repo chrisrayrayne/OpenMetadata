@@ -62,6 +62,7 @@ import static org.openmetadata.service.util.EntityUtil.fieldUpdated;
 import static org.openmetadata.service.util.EntityUtil.getColumnField;
 import static org.openmetadata.service.util.EntityUtil.getEntityReferences;
 import static org.openmetadata.service.util.EntityUtil.getExtensionField;
+import static org.openmetadata.service.util.EntityUtil.isNullOrEmptyChangeDescription;
 import static org.openmetadata.service.util.EntityUtil.mergedInheritedEntityRefs;
 import static org.openmetadata.service.util.EntityUtil.nextMajorVersion;
 import static org.openmetadata.service.util.EntityUtil.nextVersion;
@@ -1310,6 +1311,7 @@ public abstract class EntityRepository<T extends EntityInterface> {
     if (entity != null) {
       DeleteResponse<T> response = deleteInternalByName(updatedBy, name, recursive, hardDelete);
       postDelete(response.entity());
+      deleteFromSearch(response.entity(), hardDelete);
       return response;
     } else {
       return new DeleteResponse<>(null, ENTITY_DELETED);
@@ -2624,7 +2626,7 @@ public abstract class EntityRepository<T extends EntityInterface> {
 
   protected void createAndInsertChangeEvent(
       T original, T updated, ChangeDescription changeDescription, EventType eventType) {
-    if (changeDescription == null) {
+    if (isNullOrEmptyChangeDescription(changeDescription)) {
       return;
     }
 
@@ -2812,15 +2814,15 @@ public abstract class EntityRepository<T extends EntityInterface> {
   /**
    * Override this method to support downloading CSV functionality
    */
-  public String exportToCsv(String name, String user) throws IOException {
+  public String exportToCsv(String name, String user, boolean recursive) throws IOException {
     throw new IllegalArgumentException(csvNotSupported(entityType));
   }
 
   /**
    * Load CSV provided for bulk upload
    */
-  public CsvImportResult importFromCsv(String name, String csv, boolean dryRun, String user)
-      throws IOException {
+  public CsvImportResult importFromCsv(
+      String name, String csv, boolean dryRun, String user, boolean recursive) throws IOException {
     throw new IllegalArgumentException(csvNotSupported(entityType));
   }
 
@@ -2989,7 +2991,7 @@ public abstract class EntityRepository<T extends EntityInterface> {
     }
 
     private void updateChangeSummary() {
-      if (changeDescription == null) {
+      if (isNullOrEmptyChangeDescription(changeDescription)) {
         return;
       }
       // build new change summary
@@ -3002,6 +3004,7 @@ public abstract class EntityRepository<T extends EntityInterface> {
               .map(ChangeDescription::getChangeSummary)
               .map(changeSummaryMap -> JsonUtils.deepCopy(changeSummaryMap, ChangeSummaryMap.class))
               .orElse(new ChangeSummaryMap());
+      changeDescription.setChangeSummary(current);
 
       Map<String, ChangeSummary> addedSummaries =
           changeSummarizer.summarizeChanges(
@@ -3010,11 +3013,7 @@ public abstract class EntityRepository<T extends EntityInterface> {
               changeSource,
               updated.getUpdatedBy(),
               updated.getUpdatedAt());
-
-      if (!addedSummaries.isEmpty()) {
-        changeDescription.setChangeSummary(current);
-        changeDescription.getChangeSummary().getAdditionalProperties().putAll(addedSummaries);
-      }
+      changeDescription.getChangeSummary().getAdditionalProperties().putAll(addedSummaries);
 
       Set<String> keysToDelete =
           changeSummarizer
@@ -3115,7 +3114,8 @@ public abstract class EntityRepository<T extends EntityInterface> {
         // delete operation
         if (!Objects.equals(updated.getDeleted(), original.getDeleted())
             && Boolean.TRUE.equals(updated.getDeleted())
-            && changeDescription != null) {
+            && isNullOrEmptyChangeDescription(changeDescription)
+            && (Objects.equals(original.getVersion(), updated.getVersion()))) {
           throw new IllegalArgumentException(
               CatalogExceptionMessage.readOnlyAttribute(entityType, FIELD_DELETED));
         }
@@ -3908,14 +3908,21 @@ public abstract class EntityRepository<T extends EntityInterface> {
 
     protected void updateColumnDataLength(Column origColumn, Column updatedColumn) {
       String columnField = getColumnField(origColumn, "dataLength");
+
       boolean updated =
           recordChange(columnField, origColumn.getDataLength(), updatedColumn.getDataLength());
-      if (updated
-          && (origColumn.getDataLength() == null
-              || updatedColumn.getDataLength() < origColumn.getDataLength())) {
-        // The data length of a column was reduced or added. Treat it as backward-incompatible
-        // change
-        majorVersionChange = true;
+
+      if (updated) {
+        Integer origDataLength = origColumn.getDataLength();
+        Integer updatedDataLength = updatedColumn.getDataLength();
+
+        // Ensure safe comparison when one of them is null
+        if (origDataLength == null
+            || (updatedDataLength != null && updatedDataLength < origDataLength)) {
+          // The data length of a column was reduced or added. Treat it as backward-incompatible
+          // change
+          majorVersionChange = true;
+        }
       }
     }
 
